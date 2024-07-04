@@ -32,17 +32,17 @@ export default async function handler(req, res) {
     } else {
       query += ` ORDER BY RANDOM() LIMIT 1`;
     }
-    console.log(query)
+    
     const result = tag ? await sql(query, [tag]) : await sql(query);
     const question = result[0];
-    if(!question){
-      return res.status(404).json({ message: 'No more questions matching requested criteria' });
+    if (!question) {
+      res.status(404).json({ message: 'No more questions matching requested criteria' });
     }
     await cache.setAddElement('game', gameId, `${question.id}`);
-    return res.status(200).json({ question: question.question, answer: question.answer });
+    res.status(200).json({ question: question.question, answer: question.answer });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'Something went wrong' });
+    res.status(500).json({ error: 'Something went wrong' });
   }
 }
 
