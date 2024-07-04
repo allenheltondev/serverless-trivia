@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       let games = [];
-      const response = await cache.setFetch('game', 'gameList');;
+      const response = await cache.setFetch('game', 'gameList');
       if (response instanceof CacheSetFetch.Hit) {
         games = response.value();
       }
