@@ -8,13 +8,14 @@ export default function Game() {
   const params = useParams();
   const [token, setToken] = useState(null);
   const [topicSub, setTopicSub] = useState(null);
-  const [isEnabled, setIsEnabled] = useState(false);
+  const [isWaitingForAnswer, setIsWaitingForAnswer] = useState(false);
   const [username, setUsername] = useState('Hello World!');
   const [topicClient, setTopicClient] = useState(null);
   const [cacheClient, setCacheClient] = useState(null);
   const cacheClientRef = useRef(cacheClient);
   const topicClientRef = useRef(topicClient);
   const usernameRef = useRef(username);
+  const isWaitingRef = useRef(isWaitingForAnswer);
 
   useEffect(() => {
     const getToken = async () => {
@@ -61,7 +62,7 @@ export default function Game() {
   const subscribeToGame = async () => {
     if (topicClient && !topicSub) {
       const subscription = await topicClient.subscribe('game', `${params.gameId}-submit`, {
-        onItem: async (data) => { console.log(data); processMessage(data.tokenId()); },
+        onItem: async (data) => processMessage(data.tokenId()),
         onError: (err) => console.error(err)
       });
       setTopicSub(subscription);
@@ -73,13 +74,14 @@ export default function Game() {
   };
 
   const processMessage = async (name) => {
-    // Do something with the message
-    console.log(`Received message for token ${name}`);
+    setIsWaitingForAnswer(false);
+    isWaitingRef.current = false;
+
     setUsername(name);
     usernameRef.current = name;
 
     await cacheClientRef.current.set('game', `${params.gameId}-status`, 'false');
-    await topicClientRef.current.publish('game', `${params.gameId}-status`, 'a');
+    await topicClientRef.current.publish('game', `${params.gameId}-status`, name);
   };
 
   return (

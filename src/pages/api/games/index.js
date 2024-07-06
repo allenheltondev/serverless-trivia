@@ -1,4 +1,5 @@
 import { CacheClient, CredentialProvider, CacheSetFetch } from '@gomomento/sdk';
+import { createHashKey } from '../security/helper';
 
 const cache = new CacheClient({
   credentialProvider: CredentialProvider.fromEnvVar('MOMENTO'),
@@ -17,10 +18,15 @@ export default async function handler(req, res) {
     } else if (req.method == 'POST') {
       const game = req.body;
       game.status = 'Waiting';
+
+      const hash = createHashKey(game.passKey);
       const gameId = generategameId();
+
       await cache.setAddElement('game', 'gameList', gameId);
       await cache.dictionarySetFields('game', gameId, game);
-      res.status(201).json({ id: gameId });
+      await cache.dictionarySetFields('game', `${gameId}-security`, { hash, passKey: game.passKey });
+
+      res.status(201).json({ id: gameId, hash, passKey: game.passKey });
     }
   } catch (err) {
     console.error(err);
