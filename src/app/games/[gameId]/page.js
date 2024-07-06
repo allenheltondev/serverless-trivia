@@ -1,15 +1,19 @@
 'use client';
 import Header from "@/components/Header";
 import { useRef, useState, useEffect } from "react";
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { loadCredentials, saveCredentials } from "@/components/CredentialManager";
 import { TopicClient, CredentialProvider, CacheClient } from '@gomomento/sdk-web';
 
 export default function Game() {
   const params = useParams();
+  const router = useRouter();
+
   const [token, setToken] = useState(null);
   const [topicSub, setTopicSub] = useState(null);
   const [isWaitingForAnswer, setIsWaitingForAnswer] = useState(false);
   const [username, setUsername] = useState('Hello World!');
+  const [credentials, setCredentials] = useState({});
   const [topicClient, setTopicClient] = useState(null);
   const [cacheClient, setCacheClient] = useState(null);
   const cacheClientRef = useRef(cacheClient);
@@ -17,20 +21,58 @@ export default function Game() {
   const usernameRef = useRef(username);
   const isWaitingRef = useRef(isWaitingForAnswer);
 
+  const passKey = useSearchParams().get('passKey');
+  const hash = useSearchParams().get('securityKey');
+
   useEffect(() => {
-    const getToken = async () => {
-      const res = await fetch(`/api/games/${params.gameId}/tokens?username=host`);
+    const getToken = async (creds) => {
+      const res = await fetch(`/api/games/${params.gameId}/login`, {
+        method: 'POST',
+        body: JSON.stringify({
+          username: 'host',
+          passKey: creds.passKey
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': creds.hash
+        }
+      });
+
+      if (res.status === 403) {
+        router.push('/unauthorized');
+      }
+
       const data = await res.json();
-      setToken(data.token);
+      creds.token = data.token;
+      saveCredentials(params.gameId, creds);
+
+      return creds;
     };
 
-    getToken();
-  }, []);
+    const setupCredentials = () => {
+      let creds = loadCredentials(params.gameId);
+      if (!creds && (!hash || !passKey)) {
+        router.push('/unauthorized');
+      } else if (hash && passKey) {
+        creds = { hash, passKey };
+        saveCredentials(params.gameId, creds);
+        router.push(window.location.pathname);
+      }
+
+      setCredentials(creds);
+      return creds;
+    };
+
+    if (params.gameId) {
+      const creds = setupCredentials();
+      getToken(creds);
+    }
+  }, [params]);
 
   useEffect(() => {
-    if (token && window !== 'undefined') {
+    if (credentials?.token && window !== 'undefined') {
       const topics = new TopicClient({
-        credentialProvider: CredentialProvider.fromString(token)
+        credentialProvider: CredentialProvider.fromString(credentials.token)
       });
 
       setTopicClient(topics);
@@ -38,7 +80,7 @@ export default function Game() {
 
       const cache = new CacheClient({
         defaultTtlSeconds: 300,
-        credentialProvider: CredentialProvider.fromString(token)
+        credentialProvider: CredentialProvider.fromString(credentials.token)
       });
 
       setCacheClient(cache);
@@ -53,7 +95,7 @@ export default function Game() {
         window.removeEventListener('beforeunload', updateSession);
       };
     }
-  }, [token]);
+  }, [credentials]);
 
   useEffect(() => {
     subscribeToGame();

@@ -2,6 +2,7 @@
 import Header from "@/components/Header";
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
+import { saveCredentials } from "@/components/CredentialManager";
 
 export default function Home() {
   const router = useRouter();
@@ -21,19 +22,20 @@ export default function Home() {
   }, []);
 
   const handleCreateGame = async () => {
-      const response = await fetch('/api/games', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          passKey,
-          deductPoints
-        }),
-      });
+    const response = await fetch('/api/games', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        passKey,
+        deductPoints
+      }),
+    });
 
-      const game = await response.json();
-      router.push(`/games/${game.id}`);
+    const game = await response.json();
+    saveCredentials(game.id, { hash: game.hash, passKey: game.passKey });
+    router.push(`/games/${game.id}`);
   };
 
   const handleCancel = () => {
@@ -78,7 +80,7 @@ export default function Home() {
               </label>
             </div>
             <div className="flex float-right gap-4">
-            <button
+              <button
                 className="p-2 bg-primary border border-white text-white rounded-lg"
                 onClick={handleCancel}
               >
@@ -96,7 +98,7 @@ export default function Home() {
           </div>
         </div>
       )}
-      {games.length && (
+      {games.length > 0 && (
         <div className="flex flex-col gap-4 left w-full mt-8">
           <span>Active Games</span>
           <ul className="w-full">

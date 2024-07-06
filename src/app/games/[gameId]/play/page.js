@@ -1,42 +1,69 @@
 'use client';
 import Header from "@/components/Header";
-import { useSearchParams, useParams } from 'next/navigation';
+import { useSearchParams, useParams, useRouter } from 'next/navigation';
 import { TopicClient, CredentialProvider, CacheClient, CacheGet } from '@gomomento/sdk-web';
 import { useEffect, useState, useRef } from 'react';
+import { saveCredentials, loadCredentials } from "@/components/CredentialManager";
+import dynamic from 'next/dynamic';
+
+const JoinForm = dynamic(() => import('@/components/JoinForm'), { ssr: false });
 
 export default function Play() {
   const params = useParams();
-  const [username, setUsername] = useState();
-  const [token, setToken] = useState(null);
+  const router = useRouter();
+
+  const [username, setUsername] = useState('');
+  const [team, setTeam] = useState('purple');
+  const [credentials, setCredentials] = useState(null);
   const [topicSub, setTopicSub] = useState(null);
   const [isEnabled, setIsEnabled] = useState(false);
+  const [gameDetail, setGameDetail] = useState({});
   const [topicClient, setTopicClient] = useState(null);
   const [cacheClient, setCacheClient] = useState(null);
   const cacheClientRef = useRef(cacheClient);
   const topicClientRef = useRef(topicClient);
   const isEnabledRef = useRef(isEnabled);
 
-  const name = useSearchParams().get('username');
+  const passKey = useSearchParams().get('passKey');
+  const hash = useSearchParams().get('securityKey');
 
   useEffect(() => {
-    setUsername(name);
-  }, [name]);
+    const loadGame = async (creds) => {
+      const response = await fetch(`/api/games/${params.gameId}?passKey=${creds.passKey}&securityKey=${creds.hash}`);
+      if (response.status === 404) {
+        router.push('/not-found');
+      } else if (response.status === 403) {
+        router.push('/unauthorized');
+      };
+      const data = await response.json();
 
-  useEffect(() => {
-    const getToken = async () => {
-      const res = await fetch(`/api/games/${params.gameId}/tokens?username=${username}`);
-      const data = await res.json();
-      setToken(data.token);
+      setGameDetail(data);
     };
-    if (username) {
-      getToken();
+
+    const setupCredentials = () => {
+      let creds = loadCredentials(params.gameId);
+      if (!creds && (!hash || !passKey)) {
+        router.push('/unauthorized');
+      } else if (hash && passKey) {
+        creds = { hash, passKey };
+        saveCredentials(params.gameId, creds);
+        router.push(window.location.pathname);
+      }
+
+      setCredentials(creds);
+      return creds;
+    };
+
+    if (params.gameId) {
+      const creds = setupCredentials();
+      loadGame(creds);
     }
-  }, [username]);
+  }, [params]);
 
   useEffect(() => {
-    if (token && window !== 'undefined') {
+    if (credentials?.token && window !== 'undefined') {
       const topics = new TopicClient({
-        credentialProvider: CredentialProvider.fromString(token)
+        credentialProvider: CredentialProvider.fromString(credentials.token)
       });
 
       setTopicClient(topics);
@@ -44,7 +71,7 @@ export default function Play() {
 
       const cache = new CacheClient({
         defaultTtlSeconds: 300,
-        credentialProvider: CredentialProvider.fromString(token)
+        credentialProvider: CredentialProvider.fromString(credentials.token)
       });
 
       setCacheClient(cache);
@@ -59,7 +86,7 @@ export default function Play() {
         window.removeEventListener('beforeunload', updateSession);
       };
     }
-  }, [token]);
+  }, [credentials]);
 
   useEffect(() => {
     subscribeToGame();
@@ -74,7 +101,7 @@ export default function Play() {
         isEnabledRef.current = enabled;
       }
     };
-    
+
     if (cacheClientRef?.current) {
       getCurrentStatus();
     }
@@ -107,9 +134,21 @@ export default function Play() {
     await topicClientRef.current.publish('game', `${params.gameId}-submit`, 'true');
   };
 
+  const setToken = (token) => {
+    credentials.token = token;
+    setCredentials(credentials);
+    saveCredentials(params.gameId, credentials);
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center p-24">
       <Header />
+      <JoinForm
+        gameDetail={gameDetail}
+        credentials={credentials}
+        setCredentials={setCredentials}
+        gameId={params.gameId}
+      />
       <span>Hello Player!</span>
       <button
         className="bg-blue-500 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400 disabled:cursor-not-allowed"

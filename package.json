@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@faker-js/faker": "^8.4.1",
     "@gomomento/sdk": "^1.92.1",
     "@gomomento/sdk-web": "^1.92.1",
     "@neondatabase/serverless": "^0.9.4",

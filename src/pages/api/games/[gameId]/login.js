@@ -1,8 +1,17 @@
-const { AuthClient, CacheClient, CredentialProvider, ExpiresIn, TopicRole, CacheRole, GenerateDisposableToken, CacheDictionaryFetch } = require('@gomomento/sdk');
+const { AuthClient, CacheClient, TopicClient, CredentialProvider, ExpiresIn, TopicRole, CacheRole, GenerateDisposableToken, CacheDictionaryFetch, CacheSetFetch } = require('@gomomento/sdk');
 import { verifyHashKey } from "../../security/helper";
 
 const auth = new AuthClient({
   credentialProvider: CredentialProvider.fromEnvVar('MOMENTO')
+});
+
+const topicClient = new TopicClient({
+  credentialProvider: CredentialProvider.fromEnvVar('MOMENTO')
+});
+
+const cacheClient = new CacheClient({
+  credentialProvider: CredentialProvider.fromEnvVar('MOMENTO'),
+  defaultTtlSeconds: 3600
 });
 
 export default async function handler(req, res) {
@@ -10,7 +19,7 @@ export default async function handler(req, res) {
     const { gameId } = req.query;
     const { authorization } = req.headers;
     if (req.method === 'POST') {
-      const { username, passKey } = req.body;
+      let { username, passKey, team } = req.body;
       if (!authorization || !verifyHashKey(passKey, authorization)) {
         res.status(403).json({ message: 'Unauthorized' });
         return;
@@ -19,6 +28,20 @@ export default async function handler(req, res) {
       if (!username) {
         res.status(400).json({ message: 'Missing username' });
         return;
+      }
+
+      if (username !== 'host') {
+        team = team?.toLowerCase();
+        if (!team || (team !== 'blue' && team !== 'purple')) {
+          res.status(400).json({ message: 'Invalid team' });
+          return;
+        }
+        await cacheClient.setAddElement('game', `${gameId}-${team}`, username);
+        await topicClient.publish('game', `${gameId}-players`, JSON.stringify(
+          {
+            purple: await getTeamMembers(gameId, 'purple'),
+            blue: await getTeamMembers(gameId, 'blue')
+          }));
       }
 
       const tokenScope = getTokenScope(gameId, username);
@@ -39,14 +62,13 @@ export default async function handler(req, res) {
         credentialProvider: CredentialProvider.fromString(authorization),
         defaultTtlSeconds: 60
       });
-      if(!authorization){
+      if (!authorization) {
         res.status(403).json({ message: 'Unauthorized' });
         return;
       }
 
       const response = await cache.dictionaryFetch('game', `${gameId}-security`);
-      console.log(response);
-      if(response instanceof CacheDictionaryFetch.Hit){
+      if (response instanceof CacheDictionaryFetch.Hit) {
         const game = response.value();
         const loginUrl = `/games/${gameId}/play?passKey=${game.passKey}&securityKey=${game.hash}`;
         res.status(200).json({ loginUrl });
@@ -70,6 +92,11 @@ const getTokenScope = (gameId, username) => {
           role: TopicRole.SubscribeOnly,
           cache: 'game',
           topic: `${gameId}-submit`
+        },
+        {
+          role: TopicRole.SubscribeOnly,
+          cache: 'game',
+          topic: `${gameId}-players`
         },
         {
           role: TopicRole.PublishOnly,
@@ -108,4 +135,13 @@ const getTokenScope = (gameId, username) => {
       ]
     };
   }
+};
+
+const getTeamMembers = async (gameId, team) => {
+  let teamMembers = [];
+  const response = await cacheClient.setFetch('game', `${gameId}-${team}`);
+  if (response instanceof CacheSetFetch.Hit) {
+    teamMembers = response.value();
+  }
+  return teamMembers;
 };

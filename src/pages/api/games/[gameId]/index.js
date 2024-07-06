@@ -1,5 +1,5 @@
 import { CacheClient, CredentialProvider, CacheDictionaryFetch, CacheSetFetch } from '@gomomento/sdk';
-
+import { verifyHashKey } from '../../security/helper';
 const cache = new CacheClient({
   credentialProvider: CredentialProvider.fromEnvVar('MOMENTO'),
   defaultTtlSeconds: 3600
@@ -8,16 +8,31 @@ const cache = new CacheClient({
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      const { gameId } = req.query;
+      const { gameId, passKey, securityKey } = req.query;
       const response = await cache.dictionaryFetch('game', gameId);;
       if (response instanceof CacheDictionaryFetch.Miss) {
         res.status(404).json({ message: 'Game not found' });
         return;
       }
 
-      const { passKey, ...game } = response.value();
-      game.blueTeam = await getTeamMembers(gameId, 'blue');
-      game.purpleTeam = await getTeamMembers(gameId, 'purple');
+      const gameDetails = response.value();
+      if (!passKey || !securityKey || !verifyHashKey(passKey, securityKey) || gameDetails.passKey !== passKey) {
+        res.status(403).json({ message: 'Unauthorized' });
+        return;
+      }
+
+      const game = {
+        id: gameId,
+        blueTeam: {
+          name: gameDetails.blueTeamName,
+          players: await getTeamMembers(gameId, 'blue')
+        },
+        purpleTeam: {
+          name: gameDetails.purpleTeamName,
+          players: await getTeamMembers(gameId, 'purple')
+        },
+        deductPoints: gameDetails.deductPoints
+      };
 
       res.status(200).json(game);
 
