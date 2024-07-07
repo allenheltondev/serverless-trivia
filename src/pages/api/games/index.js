@@ -17,7 +17,7 @@ export default async function handler(req, res) {
       res.status(200).json({ games });
     } else if (req.method == 'POST') {
       const game = req.body;
-      game.status = 'Waiting';
+      game.status = 'Waiting for players...';
       game.purpleTeamName = generateRandomTeamName('Purple');
       game.blueTeamName = generateRandomTeamName('Blue');
 

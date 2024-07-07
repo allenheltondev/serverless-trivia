@@ -1,25 +1,47 @@
 'use client';
+import 'react-toastify/dist/ReactToastify.css';
 import Header from "@/components/Header";
 import { useRef, useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { loadCredentials, saveCredentials } from "@/components/CredentialManager";
 import { TopicClient, CredentialProvider, CacheClient } from '@gomomento/sdk-web';
+import { Flip, ToastContainer, toast } from 'react-toastify';
+import QRCode from 'react-qr-code';
+
+const WAITING = 'Waiting for players...';
+const defaultGame = {
+  status: WAITING,
+  blueTeam: {
+    name: 'Blue Team',
+    players: []
+  },
+  purpleTeam: {
+    name: 'Purple Team',
+    players: []
+  },
+  deductPoints: false,
+  multipleAttempts: false
+};
 
 export default function Game() {
   const params = useParams();
   const router = useRouter();
 
-  const [token, setToken] = useState(null);
-  const [topicSub, setTopicSub] = useState(null);
+  const [topicSubs, setTopicSubs] = useState([]);
   const [isWaitingForAnswer, setIsWaitingForAnswer] = useState(false);
-  const [username, setUsername] = useState('Hello World!');
+  const [guessingUser, setGuessingUser] = useState({ team: '', username: '' });
   const [credentials, setCredentials] = useState({});
   const [topicClient, setTopicClient] = useState(null);
   const [cacheClient, setCacheClient] = useState(null);
+  const [bluePlayers, setBluePlayers] = useState([]);
+  const [purplePlayers, setPurplePlayers] = useState([]);
+  const [game, setGame] = useState(defaultGame);
   const cacheClientRef = useRef(cacheClient);
   const topicClientRef = useRef(topicClient);
-  const usernameRef = useRef(username);
+  const guessingUserRef = useRef(guessingUser);
   const isWaitingRef = useRef(isWaitingForAnswer);
+  const bluePlayersRef = useRef(bluePlayers);
+  const purplePlayersRef = useRef(purplePlayers);
 
   const passKey = useSearchParams().get('passKey');
 
@@ -64,8 +86,33 @@ export default function Game() {
     if (params.gameId) {
       const creds = setupCredentials();
       getToken(creds);
+      getGameDetail(creds);
     }
   }, [params]);
+
+  const getGameDetail = async (creds) => {
+    const res = await fetch(`/api/games/${params.gameId}?passKey=${creds.passKey}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await res.json();
+    if (res.status !== 200) {
+      router.push('/unauthorized');
+    }
+
+    setGame(data);
+    setPlayers(data.blueTeam.players, data.purpleTeam.players);
+  };
+
+  const setPlayers = (blueTeam, purpleTeam) => {
+    setBluePlayers(blueTeam);
+    bluePlayersRef.current = blueTeam;
+    setPurplePlayers(purpleTeam);
+    purplePlayersRef.current = purpleTeam;
+  };
 
   useEffect(() => {
     if (credentials?.token && window !== 'undefined') {
@@ -100,34 +147,116 @@ export default function Game() {
   }, [topicClient]);
 
   const subscribeToGame = async () => {
-    if (topicClient && !topicSub) {
-      const subscription = await topicClient.subscribe('game', `${params.gameId}-submit`, {
-        onItem: async (data) => processMessage(data.tokenId()),
+    if (topicClient && topicSubs.length === 0) {
+      const answerSub = await topicClient.subscribe('game', `${params.gameId}-submit`, {
+        onItem: async (data) => handleAnswerRequest(data.tokenId()),
         onError: (err) => console.error(err)
       });
-      setTopicSub(subscription);
+      const playerChangeSub = await topicClient.subscribe('game', `${params.gameId}-players`, {
+        onItem: async (data) => { const players = JSON.parse(data.value()); setPlayers(players.blueTeam, players.purpleTeam); },
+        onError: (err) => console.error(err)
+      });
+      setTopicSubs([answerSub, playerChangeSub]);
     }
   };
 
   const updateSession = async () => {
-    topicSub?.unsubscribe();
+    for (const sub of topicSubs) {
+      sub.unsubscribe();
+    }
+    setTopicSubs([]);
   };
 
-  const processMessage = async (name) => {
+  const handleAnswerRequest = async (user) => {
     setIsWaitingForAnswer(false);
     isWaitingRef.current = false;
 
-    setUsername(name);
-    usernameRef.current = name;
+    const [team, username] = user.split('#');
+    setGuessingUser({ team, username });
+    usernameRef.current = { team, username };
 
     await cacheClientRef.current.set('game', `${params.gameId}-status`, 'guessing');
-    await topicClientRef.current.publish('game', `${params.gameId}-status`, name);
+    await topicClientRef.current.publish('game', `${params.gameId}-status`, user);
+  };
+
+  const copyShareLink = () => {
+    navigator.clipboard.writeText(`${window.location.href}/play?passKey=${credentials.passKey}`);
+    toast.info('Link copied to clipboard', { position: 'bottom-center', theme: 'dark', autoClose: 1500, hideProgressBar: true, transition: Flip });
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-24">
+    <main className="flex min-h-screen flex-col items-center p-24 w-full">
       <Header />
-      <span>{usernameRef.current}</span>
+      <span className="text-2xl font-bold mb-4">{game.status}</span>
+      <div className="flex flex-col items-center w-full">
+        <div id="mid-container" className="w-max-1/2">
+          {game.status == WAITING && (
+            <div className="flex flex-col items-center">
+              <a href={`${window.location.href}/play?passKey=${credentials.passKey}`} target="_blank">
+                <QRCode value={`${window.location.href}/play?passKey=${credentials.passKey}`} size={500} style={{ height: "auto", maxWidth: "200" }} />
+              </a>
+              <div className="text-xl font-bold mb-4 mt-4">
+                <span>Scan code or </span>
+                <span onClick={copyShareLink} className="cursor-pointer underline">share link</span>
+                <span> to join</span>
+              </div>
+              <button className="w-full font-bold border border-white text-white py-2 rounded hover:bg-blue-600 transition duration-300">Start game</button>
+            </div>
+          )}
+
+        </div>
+        <div className="flex flex-row justify-between w-full">
+          <div className="flex flex-col items-left">
+            <span className="text-xl font-bold mb-4">{game.blueTeam.name}</span>
+            <ul>
+              {bluePlayersRef.current.map((player, index) => (
+                <li key={index}>
+                  {(guessingUserRef.current.username === player && guessingUserRef.current.team == 'blue') ? (
+                    <div className="flex flex-row gap-4 items-center bg-darkPurple p-2 rounded-xl drop-shadow-xl text-black font-bold">
+                      <div className="w-8 h-8 bg-blue rounded-full text-black font-bold flex justify-center items-center text-xl">
+                        {player.charAt(0).toUpperCase()}
+                      </div>
+                      {player}
+                    </div>
+                  ) : (
+                    <div className="flex flex-row gap-4 items-center p-2 rounded-xl">
+                      <div className="w-8 h-8 bg-blue rounded-full text-black font-bold flex justify-center items-center text-xl">
+                        {player.charAt(0).toUpperCase()}
+                      </div>
+                      {player}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-xl font-bold mb-4">{game.purpleTeam.name}</span>
+            <ul className="w-full">
+              {purplePlayersRef.current.map((player, index) => (
+                <li key={index}>
+                  {(guessingUserRef.current.username === player && guessingUserRef.current.team == 'purple') ? (
+                    <div className="flex flex-row gap-4 items-center justify-end bg-darkBlue p-2 rounded-lg w-full drop-shadow-xl text-black font-bold">
+                      {player}
+                      <div className="w-8 h-8 bg-purple rounded-full text-black font-bold flex justify-center items-center text-xl">
+                        {player.charAt(0).toUpperCase()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-row gap-4 items-center justify-end p-2 rounded-lg w-full">
+                      {player}
+                      <div className="w-8 h-8 bg-purple rounded-full text-black font-bold flex justify-center items-center text-xl">
+                        {player.charAt(0).toUpperCase()}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+      <ToastContainer />
     </main>
   );
 }

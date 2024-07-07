@@ -16,7 +16,9 @@ module.exports = {
         secondary: 'var(--secondary-color)',
         primaryDark: 'var(--primary-dark)',
         blue: 'var(--light-blue)',
-        purple: 'var(--light-purple)'
+        purple: 'var(--light-purple)',
+        darkBlue: 'var(--dark-blue)',
+        darkPurple: 'var(--dark-purple)'
       }
     },
   },

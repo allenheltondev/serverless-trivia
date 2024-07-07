@@ -31,7 +31,9 @@ export default async function handler(req, res) {
           name: gameDetails.purpleTeamName,
           players: await getTeamMembers(gameId, 'purple')
         },
-        deductPoints: gameDetails.deductPoints
+        deductPoints: gameDetails.deductPoints,
+        multipleAttempts: gameDetails.multipleAttempts,
+        status: gameDetails.status
       };
 
       res.status(200).json(game);

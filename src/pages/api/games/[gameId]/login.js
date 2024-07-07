@@ -40,13 +40,13 @@ export default async function handler(req, res) {
         await cacheClient.setAddElement('game', `${gameId}-${team}`, username);
         await topicClient.publish('game', `${gameId}-players`, JSON.stringify(
           {
-            purple: await getTeamMembers(gameId, 'purple'),
-            blue: await getTeamMembers(gameId, 'blue')
+            purpleTeam: await getTeamMembers(gameId, 'purple'),
+            blueTeam: await getTeamMembers(gameId, 'blue')
           }));
       }
 
       const tokenScope = getTokenScope(gameId, username);
-      const token = await auth.generateDisposableToken(tokenScope, ExpiresIn.hours(1), { tokenId: username });
+      const token = await auth.generateDisposableToken(tokenScope, ExpiresIn.hours(1), { tokenId: `${team}#${username}`});
       if (token instanceof GenerateDisposableToken.Success) {
         const vendedToken = {
           token: token.authToken,
