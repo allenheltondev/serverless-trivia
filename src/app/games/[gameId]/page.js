@@ -22,19 +22,17 @@ export default function Game() {
   const isWaitingRef = useRef(isWaitingForAnswer);
 
   const passKey = useSearchParams().get('passKey');
-  const hash = useSearchParams().get('securityKey');
 
   useEffect(() => {
     const getToken = async (creds) => {
       const res = await fetch(`/api/games/${params.gameId}/login`, {
         method: 'POST',
         body: JSON.stringify({
-          username: 'host',
-          passKey: creds.passKey
+          username: 'host'
         }),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': creds.hash
+          'Authorization': creds.passKey
         }
       });
 
@@ -51,10 +49,10 @@ export default function Game() {
 
     const setupCredentials = () => {
       let creds = loadCredentials(params.gameId);
-      if (!creds && (!hash || !passKey)) {
+      if (!creds && !passKey) {
         router.push('/unauthorized');
-      } else if (hash && passKey) {
-        creds = { hash, passKey };
+      } else if (passKey) {
+        creds = { passKey };
         saveCredentials(params.gameId, creds);
         router.push(window.location.pathname);
       }
@@ -122,7 +120,7 @@ export default function Game() {
     setUsername(name);
     usernameRef.current = name;
 
-    await cacheClientRef.current.set('game', `${params.gameId}-status`, 'false');
+    await cacheClientRef.current.set('game', `${params.gameId}-status`, 'guessing');
     await topicClientRef.current.publish('game', `${params.gameId}-status`, name);
   };
 

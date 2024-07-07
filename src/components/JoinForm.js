@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveCredentials } from "./CredentialManager";
 
-export default function JoinForm({ gameDetail, credentials, setCredentials, gameId }) {
+export default function JoinForm({ gameDetail, credentials, setCredentials, gameId, setName }) {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [team, setTeam] = useState('purple');
@@ -20,12 +20,11 @@ export default function JoinForm({ gameDetail, credentials, setCredentials, game
       method: 'POST',
       body: JSON.stringify({
         username,
-        team,
-        passKey: creds.passKey
+        team
       }),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': creds.hash
+        'Authorization': creds.passKey
       }
     });
 
@@ -34,7 +33,7 @@ export default function JoinForm({ gameDetail, credentials, setCredentials, game
     }
 
     const data = await res.json();
-    const updatedCredentials = { ...credentials, token: data.token };
+    const updatedCredentials = { ...credentials, token: data.token, username, team };
     saveCredentials(gameId, updatedCredentials);
     setCredentials(updatedCredentials);
   };
@@ -44,57 +43,59 @@ export default function JoinForm({ gameDetail, credentials, setCredentials, game
   }
 
   return (
-    <form onSubmit={join} method="post" className="border border-white p-8 pb-4 pt-4 rounded-xl shadow-md w-full max-w-md">
-      <fieldset className="mb-4">
-        <legend className="text-lg font-medium mb-2">Choose a team</legend>
-        <div className="flex items-center mb-2 bg-purple font-bold rounded-lg pl-2">
+    <div className='w-full pl-4 pr-4 flex flex-col items-center'>
+      <form onSubmit={join} method="post" className="border border-white p-8 pb-4 pt-4 rounded-xl shadow-md w-full max-w-md">
+        <fieldset className="mb-4">
+          <legend className="text-lg font-medium mb-2">Choose a team</legend>
+          <div className="flex items-center mb-2 bg-purple font-bold rounded-lg pl-2">
+            <input
+              type="radio"
+              id="purple"
+              name="team"
+              value="purple"
+              className="mr-2"
+              checked={team === 'purple'}
+              onChange={() => setTeam('purple')}
+              disabled={gameDetail?.purpleTeam?.players?.length >= 4}
+            />
+            <label htmlFor="purple" className="text-black p-2 pr-4">
+              {gameDetail?.purpleTeam?.name} ({gameDetail?.purpleTeam?.players?.length} / 4)
+            </label>
+          </div>
+          <div className="flex items-center mb-2 pl-2 bg-blue font-bold rounded-lg">
+            <input
+              type="radio"
+              id="blue"
+              name="team"
+              value="blue"
+              className="mr-2"
+              checked={team === 'blue'}
+              onChange={() => setTeam('blue')}
+              disabled={gameDetail?.blueTeam?.players?.length >= 4}
+            />
+            <label htmlFor="blue" className="p-2 pr-4 text-black">
+              {gameDetail?.blueTeam?.name} ({gameDetail?.blueTeam?.players?.length} / 4)
+            </label>
+          </div>
+        </fieldset>
+        <div className="mb-8">
+          <label htmlFor="username" className="block text-white text-lg mb-2">Username</label>
           <input
-            type="radio"
-            id="purple"
-            name="team"
-            value="purple"
-            className="mr-2"
-            checked={team === 'purple'}
-            onChange={() => setTeam('purple')}
-            disabled={gameDetail?.purpleTeam?.players?.length >= 4}
+            type="text"
+            id="username"
+            name="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full px-3 text-black py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
           />
-          <label htmlFor="purple" className="text-black p-2 pr-4">
-            {gameDetail?.purpleTeam?.name} ({gameDetail?.purpleTeam?.players?.length} / 4)
-          </label>
         </div>
-        <div className="flex items-center mb-2 pl-2 bg-blue font-bold rounded-lg">
-          <input
-            type="radio"
-            id="blue"
-            name="team"
-            value="blue"
-            className="mr-2"
-            checked={team === 'blue'}
-            onChange={() => setTeam('blue')}
-            disabled={gameDetail?.blueTeam?.players?.length >= 4}
-          />
-          <label htmlFor="blue" className="p-2 pr-4 text-black">
-            {gameDetail?.blueTeam?.name} ({gameDetail?.blueTeam?.players?.length} / 4)
-          </label>
-        </div>
-      </fieldset>
-      <div className="mb-8">
-        <label htmlFor="username" className="block text-white text-lg mb-2">Username</label>
         <input
-          type="text"
-          id="username"
-          name="username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="w-full px-3 text-black py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
+          type="submit"
+          value="Join"
+          className="w-full bg-blue-500 border border-white text-white py-2 rounded hover:bg-blue-600 transition duration-300"
         />
-      </div>
-      <input
-        type="submit"
-        value="Join"
-        className="w-full bg-blue-500 border border-white text-white py-2 rounded hover:bg-blue-600 transition duration-300"
-      />
-    </form>
+      </form>
+    </div>
   );
 }

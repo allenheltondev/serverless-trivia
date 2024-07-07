@@ -1,5 +1,4 @@
 import { CacheClient, CredentialProvider, CacheSetFetch } from '@gomomento/sdk';
-import { createHashKey } from '../security/helper';
 import { faker } from '@faker-js/faker';
 
 const cache = new CacheClient({
@@ -22,14 +21,13 @@ export default async function handler(req, res) {
       game.purpleTeamName = generateRandomTeamName('Purple');
       game.blueTeamName = generateRandomTeamName('Blue');
 
-      const hash = createHashKey(game.passKey);
       const gameId = generategameId();
 
       await cache.setAddElement('game', 'gameList', gameId);
       await cache.dictionarySetFields('game', gameId, game);
-      await cache.dictionarySetFields('game', `${gameId}-security`, { hash, passKey: game.passKey });
+      await cache.dictionarySetFields('game', `${gameId}-security`, { passKey: game.passKey });
 
-      res.status(201).json({ id: gameId, hash, passKey: game.passKey });
+      res.status(201).json({ id: gameId, passKey: game.passKey });
     }
   } catch (err) {
     console.error(err);

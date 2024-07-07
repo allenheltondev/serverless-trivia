@@ -12,24 +12,23 @@ export default function Play() {
   const params = useParams();
   const router = useRouter();
 
-  const [username, setUsername] = useState('');
-  const [team, setTeam] = useState('purple');
-  const [credentials, setCredentials] = useState(null);
+  const [credentials, setCredentials] = useState({ username: '', team: '' });
   const [topicSub, setTopicSub] = useState(null);
   const [isEnabled, setIsEnabled] = useState(false);
+  const [isMyGuess, setIsMyGuess] = useState(false);
   const [gameDetail, setGameDetail] = useState({});
   const [topicClient, setTopicClient] = useState(null);
   const [cacheClient, setCacheClient] = useState(null);
   const cacheClientRef = useRef(cacheClient);
   const topicClientRef = useRef(topicClient);
   const isEnabledRef = useRef(isEnabled);
+  const isMyGuessRef = useRef(isMyGuess);
 
   const passKey = useSearchParams().get('passKey');
-  const hash = useSearchParams().get('securityKey');
 
   useEffect(() => {
     const loadGame = async (creds) => {
-      const response = await fetch(`/api/games/${params.gameId}?passKey=${creds.passKey}&securityKey=${creds.hash}`);
+      const response = await fetch(`/api/games/${params.gameId}?passKey=${creds.passKey}`);
       if (response.status === 404) {
         router.push('/not-found');
       } else if (response.status === 403) {
@@ -42,10 +41,10 @@ export default function Play() {
 
     const setupCredentials = () => {
       let creds = loadCredentials(params.gameId);
-      if (!creds && (!hash || !passKey)) {
+      if (!creds && !passKey) {
         router.push('/unauthorized');
-      } else if (hash && passKey) {
-        creds = { hash, passKey };
+      } else if (passKey) {
+        creds = { passKey };
         saveCredentials(params.gameId, creds);
         router.push(window.location.pathname);
       }
@@ -110,7 +109,7 @@ export default function Play() {
   const subscribeToGame = async () => {
     if (topicClient && !topicSub) {
       const subscription = await topicClient.subscribe('game', `${params.gameId}-status`, {
-        onItem: async (data) => processMessage(data.value()),
+        onItem: async (data) => handleGameStatusChange(data.value()),
         onError: (err) => console.error(err)
       });
       setTopicSub(subscription);
@@ -121,12 +120,16 @@ export default function Play() {
     topicSub?.unsubscribe();
   };
 
-  const processMessage = async () => {
+  const handleGameStatusChange = async (message) => {
     const response = await cacheClientRef.current.get('game', `${params.gameId}-status`);
     if (response instanceof CacheGet.Hit) {
-      const enabled = (response.value() === 'true');
+      const enabled = (response.value() === 'ready');
       setIsEnabled(enabled);
       isEnabledRef.current = enabled;
+
+      const didIGetItFirst = message === credentials.username;
+      setIsMyGuess(didIGetItFirst);
+      isMyGuessRef.current = didIGetItFirst;
     }
   };
 
@@ -134,14 +137,8 @@ export default function Play() {
     await topicClientRef.current.publish('game', `${params.gameId}-submit`, 'true');
   };
 
-  const setToken = (token) => {
-    credentials.token = token;
-    setCredentials(credentials);
-    saveCredentials(params.gameId, credentials);
-  };
-
   return (
-    <main className="flex min-h-screen flex-col items-center p-24">
+    <main className="flex min-h-screen flex-col items-center pt-24 w-full">
       <Header />
       <JoinForm
         gameDetail={gameDetail}
@@ -149,14 +146,23 @@ export default function Play() {
         setCredentials={setCredentials}
         gameId={params.gameId}
       />
-      <span>Hello Player!</span>
-      <button
-        className="bg-blue-500 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
-        disabled={!isEnabledRef.current}
-        onClick={answerQuestion}
-      >
-        Click Me
-      </button>
+      {credentials.team && (
+        <div className="flex flex-col items-center w-full">
+          <span className="text-xl font-bold mb-4">Playing as {credentials.username} on team {credentials.team}</span>
+          <button
+            className="bg-purple text-black text-2xl font-bold py-6 px-6 rounded-full mt-4 w-48 h-48 drop-shadow-xl active:bg-blue disabled:bg-gray-400 disabled:text-gray-600 disabled:cursor-not-allowed cursor-pointer"
+            onClick={answerQuestion}
+            disabled={!isEnabledRef.current}
+          >
+            I Know the Answer!
+          </button>
+          {isMyGuess && (
+            <div className="w-full text-xl text-black bg-blue p-4 mt-8">
+              You buzzed in first! What's your guess?
+            </div>
+          )}
+        </div>
+      )}
     </main>
   );
 }

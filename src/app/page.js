@@ -34,7 +34,7 @@ export default function Home() {
     });
 
     const game = await response.json();
-    saveCredentials(game.id, { hash: game.hash, passKey: game.passKey });
+    saveCredentials(game.id, { passKey: game.passKey });
     router.push(`/games/${game.id}`);
   };
 

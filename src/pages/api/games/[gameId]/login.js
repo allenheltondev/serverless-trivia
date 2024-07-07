@@ -1,5 +1,4 @@
 const { AuthClient, CacheClient, TopicClient, CredentialProvider, ExpiresIn, TopicRole, CacheRole, GenerateDisposableToken, CacheDictionaryFetch, CacheSetFetch } = require('@gomomento/sdk');
-import { verifyHashKey } from "../../security/helper";
 
 const auth = new AuthClient({
   credentialProvider: CredentialProvider.fromEnvVar('MOMENTO')
@@ -19,8 +18,10 @@ export default async function handler(req, res) {
     const { gameId } = req.query;
     const { authorization } = req.headers;
     if (req.method === 'POST') {
-      let { username, passKey, team } = req.body;
-      if (!authorization || !verifyHashKey(passKey, authorization)) {
+      let { username, team } = req.body;
+      const response = await cacheClient.dictionaryGetField('game', `${gameId}-security`, 'passKey');
+
+      if (!authorization || response.is_miss || response.value() != authorization) {
         res.status(403).json({ message: 'Unauthorized' });
         return;
       }
@@ -70,7 +71,7 @@ export default async function handler(req, res) {
       const response = await cache.dictionaryFetch('game', `${gameId}-security`);
       if (response instanceof CacheDictionaryFetch.Hit) {
         const game = response.value();
-        const loginUrl = `/games/${gameId}/play?passKey=${game.passKey}&securityKey=${game.hash}`;
+        const loginUrl = `/games/${gameId}/play?passKey=${game.passKey}`;
         res.status(200).json({ loginUrl });
       }
       res.status(409).json({ message: 'Something is wrong with the state of the game' });

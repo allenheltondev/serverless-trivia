@@ -1,5 +1,5 @@
 import { CacheClient, CredentialProvider, CacheDictionaryFetch, CacheSetFetch } from '@gomomento/sdk';
-import { verifyHashKey } from '../../security/helper';
+
 const cache = new CacheClient({
   credentialProvider: CredentialProvider.fromEnvVar('MOMENTO'),
   defaultTtlSeconds: 3600
@@ -8,7 +8,7 @@ const cache = new CacheClient({
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      const { gameId, passKey, securityKey } = req.query;
+      const { gameId, passKey } = req.query;
       const response = await cache.dictionaryFetch('game', gameId);;
       if (response instanceof CacheDictionaryFetch.Miss) {
         res.status(404).json({ message: 'Game not found' });
@@ -16,7 +16,7 @@ export default async function handler(req, res) {
       }
 
       const gameDetails = response.value();
-      if (!passKey || !securityKey || !verifyHashKey(passKey, securityKey) || gameDetails.passKey !== passKey) {
+      if (!passKey || gameDetails.passKey !== passKey) {
         res.status(403).json({ message: 'Unauthorized' });
         return;
       }
