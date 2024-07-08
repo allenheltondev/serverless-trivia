@@ -38,7 +38,7 @@ export default function Game() {
   const [bluePlayers, setBluePlayers] = useState([]);
   const [purplePlayers, setPurplePlayers] = useState([]);
   const [game, setGame] = useState(defaultGame);
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useState({ question: 'Ready to play?' });
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
 
   const cacheClientRef = useRef(cacheClient);
@@ -51,6 +51,13 @@ export default function Game() {
   const passKey = useSearchParams().get('passKey');
 
   useEffect(() => {
+    const initialize = async () => {
+      let creds = setupCredentials();
+      creds = await getToken(creds);
+      getGameDetail(creds);
+      configureMomentoClients(creds);
+    };
+
     const getToken = async (creds) => {
       const res = await fetch(`/api/games/${params.gameId}/login`, {
         method: 'POST',
@@ -89,9 +96,7 @@ export default function Game() {
     };
 
     if (params.gameId) {
-      const creds = setupCredentials();
-      getToken(creds);
-      getGameDetail(creds);
+      initialize();
     }
   }, [params]);
 
@@ -120,9 +125,23 @@ export default function Game() {
   };
 
   useEffect(() => {
-    if (credentials?.token && window !== 'undefined') {
+    configureMomentoClients();
+
+    // Remove subscriptions when the window is closed
+    window.addEventListener('beforeunload', updateSession);
+    updateSession(false);
+
+    // Removing the event listener on cleanup
+    return () => {
+      window.removeEventListener('beforeunload', updateSession);
+    };
+  }, [credentials]);
+
+  const configureMomentoClients = (creds) => {
+    const clientCredentials = creds ?? credentials;
+    if (clientCredentials?.token && window !== 'undefined') {
       const topics = new TopicClient({
-        credentialProvider: CredentialProvider.fromString(credentials.token)
+        credentialProvider: CredentialProvider.fromString(clientCredentials.token)
       });
 
       setTopicClient(topics);
@@ -130,22 +149,13 @@ export default function Game() {
 
       const cache = new CacheClient({
         defaultTtlSeconds: 300,
-        credentialProvider: CredentialProvider.fromString(credentials.token)
+        credentialProvider: CredentialProvider.fromString(clientCredentials.token)
       });
 
       setCacheClient(cache);
       cacheClientRef.current = cache;
-
-      // Adding the event listener
-      window.addEventListener('beforeunload', updateSession);
-      updateSession(false);
-
-      // Removing the event listener on cleanup
-      return () => {
-        window.removeEventListener('beforeunload', updateSession);
-      };
     }
-  }, [credentials]);
+  };
 
   useEffect(() => {
     subscribeToGame();
@@ -201,7 +211,22 @@ export default function Game() {
     setGame({ ...game, status });
   };
 
-  const getNextQuestion = async () => {
+  const getNextQuestion = async (answeredCorrectly) => {
+    // if (answeredCorrectly != undefined) {
+    //   await fetch(`/api/games/${params.gameId}/questions/${question.id}/answers`, {
+    //     method: 'POST',
+    //     body: JSON.stringify({
+    //       team: guessingUserRef.current.team,
+    //       username: guessingUserRef.current.username,
+    //       isCorrect: answeredCorrectly
+    //     }),
+    //     headers: {
+    //       'Content-Type': 'application/json',
+    //       'Authorization': credentials.passKey
+    //     }
+    //   });
+    // }
+    
     const response = await fetch(`/api/games/${params.gameId}/questions`, {
       headers: {
         'Content-Type': 'application/json',
@@ -223,18 +248,18 @@ export default function Game() {
       setGuessingUser({ team: '', username: '' });
       guessingUserRef.current = { team: '', username: '' };
 
-      await cacheClientRef.current.set('game', `${params.gameId}-status`, 'ready');
-      const r = await topicClientRef.current.publish('game', `${params.gameId}-status`, '#');
-      console.log(r);
+      const key = `${params.gameId}-status`;
+      await cacheClientRef.current.set('game', key, 'ready');
+      await topicClientRef.current.publish('game', key, '#');
     }
   };
 
   return (
     <main className="flex min-h-screen flex-col items-center p-24 w-full">
       <Header />
-      <span className="text-2xl font-bold mb-4">{game.status}</span>
+      {game.status !== PLAYING && <span className="text-2xl font-bold mb-4">{game.status}</span>}
       <div className="flex flex-col items-center w-full">
-        <div id="mid-container" className="w-max-1/2">
+        <div id="mid-container" className="w-full flex justify-center">
           {game.status == WAITING && (
             <div className="flex flex-col items-center">
               <a href={`${window?.location?.href}/play?passKey=${credentials.passKey}`} target="_blank">
@@ -252,15 +277,28 @@ export default function Game() {
             </div>
           )}
           {game.status == PLAYING && (
-            <div className="flex flex-col gap-4 items-center">
+            <div className="flex flex-col items-center border border-white rounded-xl p-6 w-2/3 mb-8">
+              <div className=' flex flex-col items-center justify-center gap-4'>
+                <span className="text-2xl font-bold text-center">{question.question}</span>
+                {isAnswerVisible ? (
+                  <span className="text-lg italic font-bold mb-4">{question.answer}</span>
+                ) : (
+                  <span className="invisible text-lg italic font-bold mb-4">{question.answer}</span>
+                )
+                }
+              </div>
               <div className="flex flex-row gap-4 items-center justify-center">
-                <button className="font-bold bg-purple text-black p-2 rounded" onClick={getNextQuestion}>Next Question</button>
-                {question && (
-                  <button className="font-bold bg-blue text-black p-2 rounded" onClick={() => setIsAnswerVisible(true)}>Show Answer</button>
+                {!question.answer && <button className="font-bold bg-purple text-black p-2 rounded" onClick={getNextQuestion}>Show first question</button>}
+                {(question.answer && !isAnswerVisible) && (
+                  <button className="font-bold bg-blue text-black p-2 rounded" onClick={() => setIsAnswerVisible(true)}>Show answer</button>
+                )}
+                {(question.answer && isAnswerVisible) && (
+                  <div className="flex flex-row gap-4 items-center justify-center">
+                    <button className="font-bold bg-purple text-black p-2 rounded w-20" onClick={getNextQuestion(true)}>👍</button>
+                    <button className="font-bold bg-darkBlue text-black p-2 rounded w-20" onClick={getNextQuestion(false)}>👎</button>
+                  </div>
                 )}
               </div>
-              <span className="text-2xl font-bold mt-4">{question.question}</span>
-              {isAnswerVisible && <span className="text-lg italic font-bold mb-4">{question.answer}</span>}
             </div>
           )}
         </div>

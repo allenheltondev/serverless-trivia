@@ -19,6 +19,10 @@ module.exports = {
         purple: 'var(--light-purple)',
         darkBlue: 'var(--dark-blue)',
         darkPurple: 'var(--dark-purple)'
+      },
+      width: {
+        '2/3': '66%',
+        '3/4': '75%'
       }
     },
   },

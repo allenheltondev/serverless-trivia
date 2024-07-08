@@ -95,7 +95,7 @@ export default function Play() {
     const getCurrentStatus = async () => {
       const response = await cacheClientRef.current.get('game', `${params.gameId}-status`);
       if (response instanceof CacheGet.Hit) {
-        const enabled = (response.value() === 'true');
+        const enabled = (response.value() === 'ready');
         setIsEnabled(enabled);
         isEnabledRef.current = enabled;
       }
