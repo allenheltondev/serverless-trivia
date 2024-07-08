@@ -62,7 +62,7 @@ export default async function handler(req, res) {
       res.status(409).json({ message: 'No more questions matching requested criteria. Try changing or removing the tag.' });
     }
     await cache.setAddElement('game', gameId, `${question.id}`);
-    res.status(200).json({ question: question.question, answer: question.answer });
+    res.status(200).json({ id: question.id, question: question.question, answer: question.answer });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Something went wrong' });

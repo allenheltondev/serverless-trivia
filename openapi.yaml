@@ -1,0 +1,359 @@
+openapi: 3.0.0
+info:
+  title: Trivia API
+  version: 1.0.0
+
+tags:
+  - name: Questions
+    description: Endpoints for managing the question database or game questions
+  - name: Game
+    description: Game state management
+  - name: Players
+    description: Operations for users
+  - name: Not Implemented
+    description: Endpoints that still need to be written
+
+paths:
+  /questions:
+    post:
+      tags: [Questions]
+      summary: Add a new question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Question'
+      responses:
+        '201':
+          description: Question created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                required: [id]
+        '400':
+          description: Invalid request body
+        '500':
+          description: Internal server error
+    get:
+      tags: [Questions]
+      summary: Get list of all available questions
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuestionList'
+        '500':
+          description: Internal server error
+
+  /games:
+    get:
+      tags: [Game]
+      summary: Get list of all game ids
+      responses:
+        '200':
+          description: The list of games is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  games:
+                    type: array
+                    items:
+                      type: string
+        '500':
+          description: Internal server error
+    post:
+      tags: [Game]
+      summary: Create a new game
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                passKey:
+                  type: string
+                deductPoints:
+                  type: boolean
+              required:
+                - passKey
+      responses:
+        '201':
+          description: The new game was created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  passKey:
+                    type: string
+                required:
+                  - id
+                  - passKey
+        '400':
+          description: Invalid request body
+        '500':
+          description: Internal server error
+
+  /games/{gameId}:
+    parameters:
+      - $ref: '#/components/parameters/gameId'
+    put:
+      tags: [Game]
+      summary: Update game status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [Waiting for players..., Playing, Complete]
+              required:
+                - status
+      responses:
+        '204':
+          description: The game was updated
+        '400':
+          description: Invalid request body
+        '403':
+          description: Unauthorized
+        '404':
+          description: Game not found
+        '500':
+          description: Internal server error
+    get:
+      tags: [Game]
+      summary: Get game details
+      responses:
+        '200':
+          description: The game was found and the details were returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+
+        '403':
+          description: Unauthorized
+        '404':
+          description: Session not found
+        '500':
+          description: Internal server error
+
+  /games/{gameId}/questions:
+    parameters:
+      - $ref: '#/components/parameters/gameId'
+      - $ref: '#/components/parameters/authorization'
+      - $ref: '#/components/parameters/tag'
+    get:
+      tags: [Questions]
+      summary: Gets the next question for a game
+      responses:
+        '200':
+          description: A new question was picked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: number
+                  question:
+                    type: string
+                  answer:
+                    type: string
+                required:
+                  - id
+                  - question
+                  - answer
+        '403':
+          description: Unauthorized
+        '404':
+          description: Session not found
+        '409':
+          description: No new questions found with the request tag
+        '500':
+          description: Internal server error
+
+  /games/{gameId}/login:
+    parameters:
+      - $ref: '#/components/parameters/gameId'
+      - $ref: '#/components/parameters/authorization'
+    post:
+      tags: [Players]
+      summary: Log into a game
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                team:
+                  type: string
+                  enum: [purple, blue]
+                username:
+                  type: string
+              required:
+                - team
+                - username
+      responses:
+        '200':
+          description: The user is logged into the game
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  exp:
+                    type: number
+                required:
+                  - type
+                  - exp
+        '400':
+          description: Invalid request body
+        '403':
+          description: Unauthorized
+        '404':
+          description: Game not found
+        '409':
+          description: Cannot log into game because of game status
+        '500':
+          description: Internal server error
+
+  /games/{gameId}/questions/{questionId}/answers:
+    parameters:
+      - $ref: '#/components/parameters/gameId'
+      - $ref: '#/components/parameters/authorization'
+      - $ref: '#/components/parameters/questionId'
+    post:
+      tags: [Not Implemented]
+      summary: Submit an answer to a game question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                team:
+                  type: string
+                  enum: [purple, blue]
+                username:
+                  type: string
+                isCorrect:
+                  type: boolean
+              required:
+                - isCorrect
+      responses:
+        '204':
+          description: The answer was submitted and points have been updated
+        '400':
+          description: Invalid request body
+        '403':
+          description: Unauthorized
+        '404':
+          description: Game, question, or user not found
+        '409':
+          description: Cannot answer question due to game status
+        '500':
+          description: Internal server error
+
+components:
+  parameters:
+    gameId:
+      name: gameId
+      in: path
+      required: true
+      schema:
+        type: string
+    authorization:
+      name: authorization
+      in: header
+      required: true
+      schema:
+        type: string
+    tag:
+      name: tag
+      in: query
+      required: true
+      schema:
+        type: string
+    questionId:
+      name: questionId
+      in: path
+      required: true
+      schema:
+        type: number
+
+  schemas:
+    Question:
+      type: object
+      properties:
+        question:
+          type: string
+        answer:
+          type: string
+        id:
+          type: number
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - question
+        - answer
+
+    QuestionList:
+      type: array
+      items:
+        $ref: '#/components/schemas/Question'
+
+    Game:
+      type: object
+      properties:
+        id:
+          type: string
+        blueTeam:
+          $ref: '#/components/schemas/Team'
+        purpleTeam:
+          $ref: '#/components/schemas/Team'
+        deductPoints:
+          type: boolean
+        status:
+          type: string
+          enum: [Waiting for players..., Playing, Complete]
+      required:
+        - id
+        - blueTeam
+        - purpleTeam
+        - status
+
+    Team:
+      type: object
+      properties:
+        name:
+          type: string
+        players:
+          type: array
+          items:
+            type: string
+        points:
+          type: integer

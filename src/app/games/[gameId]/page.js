@@ -21,8 +21,7 @@ const defaultGame = {
     name: 'Purple Team',
     players: []
   },
-  deductPoints: false,
-  multipleAttempts: false
+  deductPoints: false
 };
 
 export default function Game() {
@@ -101,10 +100,11 @@ export default function Game() {
   }, [params]);
 
   const getGameDetail = async (creds) => {
-    const res = await fetch(`/api/games/${params.gameId}?passKey=${creds.passKey}`, {
+    const res = await fetch(`/api/games/${params.gameId}`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': creds.passKey
       }
     });
 
@@ -190,9 +190,13 @@ export default function Game() {
     setGuessingUser({ team, username });
     guessingUserRef.current = { team, username };
 
+    disableGuessing(user);
+  };
+
+  const disableGuessing = async (user) => {
     await cacheClientRef.current.set('game', `${params.gameId}-status`, 'guessing');
     await topicClientRef.current.publish('game', `${params.gameId}-status`, user);
-  };
+  }
 
   const copyShareLink = () => {
     navigator.clipboard.writeText(`${window.location.href}/play?passKey=${credentials.passKey}`);
@@ -211,6 +215,15 @@ export default function Game() {
     setGame({ ...game, status });
   };
 
+  const showAnswer = () => {
+    setIsAnswerVisible(true);
+    if(guessingUserRef.current.team && guessingUserRef.current.username){
+      disableGuessing(`${guessingUserRef.current.team}#${guessingUserRef.current.username}`);
+    } else {
+      disableGuessing('#');
+    }
+  }
+
   const getNextQuestion = async (answeredCorrectly) => {
     // if (answeredCorrectly != undefined) {
     //   await fetch(`/api/games/${params.gameId}/questions/${question.id}/answers`, {
@@ -226,7 +239,7 @@ export default function Game() {
     //     }
     //   });
     // }
-    
+
     const response = await fetch(`/api/games/${params.gameId}/questions`, {
       headers: {
         'Content-Type': 'application/json',
@@ -290,12 +303,12 @@ export default function Game() {
               <div className="flex flex-row gap-4 items-center justify-center">
                 {!question.answer && <button className="font-bold bg-purple text-black p-2 rounded" onClick={getNextQuestion}>Show first question</button>}
                 {(question.answer && !isAnswerVisible) && (
-                  <button className="font-bold bg-blue text-black p-2 rounded" onClick={() => setIsAnswerVisible(true)}>Show answer</button>
+                  <button className="font-bold bg-blue text-black p-2 rounded" onClick={() => showAnswer()}>Show answer</button>
                 )}
                 {(question.answer && isAnswerVisible) && (
                   <div className="flex flex-row gap-4 items-center justify-center">
-                    <button className="font-bold bg-purple text-black p-2 rounded w-20" onClick={getNextQuestion(true)}>👍</button>
-                    <button className="font-bold bg-darkBlue text-black p-2 rounded w-20" onClick={getNextQuestion(false)}>👎</button>
+                    <button className="font-bold bg-purple text-2xl text-black p-2 rounded w-20 text-shadow-xl" onClick={() => getNextQuestion(true)}>👍</button>
+                    <button className="font-bold bg-darkBlue text-2xl text-black p-2 rounded w-20 text-shadow-xl" onClick={() => getNextQuestion(false)}>👎</button>
                   </div>
                 )}
               </div>

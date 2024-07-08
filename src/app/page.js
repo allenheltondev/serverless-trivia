@@ -10,7 +10,6 @@ export default function Home() {
   const [isNewGameFormVisible, setIsNewGameFormVisible] = useState(false);
   const [passKey, setPassKey] = useState('');
   const [deductPoints, setDeductPoints] = useState(false);
-  const [multipleAttempts, setMultipleAttempts] = useState(false);
 
   useEffect(() => {
     const getGames = async () => {
@@ -30,8 +29,7 @@ export default function Home() {
       },
       body: JSON.stringify({
         passKey,
-        deductPoints,
-        multipleAttempts
+        deductPoints
       }),
     });
 
@@ -44,7 +42,6 @@ export default function Home() {
     setIsNewGameFormVisible(false);
     setPassKey('');
     setDeductPoints(false);
-    setMultipleAttempts(false);
   };
 
   return (
@@ -80,17 +77,6 @@ export default function Home() {
                   onChange={(e) => setDeductPoints(e.target.checked)}
                 />
                 <span className="ml-2">Deduct points for wrong answers</span>
-              </label>
-            </div>
-            <div className="mb-4">
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  className="form-checkbox"
-                  checked={multipleAttempts}
-                  onChange={(e) => setMultipleAttempts(e.target.checked)}
-                />
-                <span className="ml-2">Allow multiple attempts if answered incorrectly</span>
               </label>
             </div>
             <div className="flex float-right gap-4">

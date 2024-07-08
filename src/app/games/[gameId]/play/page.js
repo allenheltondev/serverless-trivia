@@ -28,7 +28,11 @@ export default function Play() {
 
   useEffect(() => {
     const loadGame = async (creds) => {
-      const response = await fetch(`/api/games/${params.gameId}?passKey=${creds.passKey}`);
+      const response = await fetch(`/api/games/${params.gameId}`, {
+        headers: {
+          'Authorization': creds.passKey
+        }
+      });
       if (response.status === 404) {
         router.push('/not-found');
       } else if (response.status === 403) {
@@ -158,7 +162,7 @@ export default function Play() {
             I Know the Answer!
           </button>
           {isMyGuess && (
-            <div className="w-full text-xl text-black bg-blue p-4 mt-8">
+            <div className="w-full text-xl text-black text-center bg-blue p-4 mt-8">
               You buzzed in first! What's your guess?
             </div>
           )}

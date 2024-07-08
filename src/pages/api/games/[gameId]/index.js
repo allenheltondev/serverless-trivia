@@ -9,8 +9,14 @@ const cache = new CacheClient({
 
 export default async function handler(req, res) {
   try {
+    const { authorization } = req.headers;
+    if(!authorization){
+      res.status(403).json({ message: 'Unauthorized' });
+      return;
+    }
+
     if (req.method === 'GET') {
-      const { gameId, passKey } = req.query;
+      const { gameId } = req.query;
       const response = await cache.dictionaryFetch('game', gameId);;
       if (response instanceof CacheDictionaryFetch.Miss) {
         res.status(404).json({ message: 'Game not found' });
@@ -18,7 +24,7 @@ export default async function handler(req, res) {
       }
 
       const gameDetails = response.value();
-      if (!passKey || gameDetails.passKey !== passKey) {
+      if (gameDetails.passKey !== authorization) {
         res.status(403).json({ message: 'Unauthorized' });
         return;
       }
@@ -34,7 +40,6 @@ export default async function handler(req, res) {
           players: await getTeamMembers(gameId, 'purple')
         },
         deductPoints: gameDetails.deductPoints,
-        multipleAttempts: gameDetails.multipleAttempts,
         status: gameDetails.status
       };
 
@@ -42,7 +47,6 @@ export default async function handler(req, res) {
 
     } else if (req.method === 'PUT') {
       const { status } = req.body;
-      const { authorization } = req.headers;
       const { gameId} = req.query;
 
       const response = await cache.dictionaryFetch('game', gameId);
@@ -52,7 +56,7 @@ export default async function handler(req, res) {
       }
 
       const game = response.value();
-      if(!authorization || game.passKey !== authorization) {
+      if(game.passKey !== authorization) {
         res.status(403).json({ message: 'Unauthorized' });
         return;
       }

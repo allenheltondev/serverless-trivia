@@ -17,6 +17,11 @@ export default async function handler(req, res) {
       res.status(200).json({ games });
     } else if (req.method == 'POST') {
       const game = req.body;
+      if(!game.passKey){
+        res.status(400).json({ error: 'passKey is required' });
+        return;
+      }
+
       game.status = 'Waiting for players...';
       game.purpleTeamName = generateRandomTeamName('Purple');
       game.blueTeamName = generateRandomTeamName('Blue');
@@ -28,6 +33,8 @@ export default async function handler(req, res) {
       await cache.dictionarySetFields('game', `${gameId}-security`, { passKey: game.passKey });
 
       res.status(201).json({ id: gameId, passKey: game.passKey });
+    } else {
+      res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (err) {
     console.error(err);
