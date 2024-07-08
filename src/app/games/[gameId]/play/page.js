@@ -127,7 +127,8 @@ export default function Play() {
       setIsEnabled(enabled);
       isEnabledRef.current = enabled;
 
-      const didIGetItFirst = message === credentials.username;
+      const [t, u] = message.split('#');
+      const didIGetItFirst = (t === credentials.team && u === credentials.username);
       setIsMyGuess(didIGetItFirst);
       isMyGuessRef.current = didIGetItFirst;
     }

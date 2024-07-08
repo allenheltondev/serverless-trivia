@@ -1,13 +1,36 @@
-import { CacheClient, CredentialProvider, CacheSetFetch } from '@gomomento/sdk';
+import { CacheClient, CredentialProvider, CacheSetFetch, CacheDictionaryGetField } from '@gomomento/sdk';
 import { neon } from "@neondatabase/serverless";
 
 const sql = neon(process.env.NEON);
-let cache;
+const cache = new CacheClient({
+  credentialProvider: CredentialProvider.fromEnvVar('MOMENTO'),
+  defaultTtlSeconds: 3600
+});
 
 export default async function handler(req, res) {
   try {
-    initializeMomento();
+    if (req.method !== 'GET') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
     const { gameId, tag } = req.query;
+    const { authorization } = req.headers;
+    if (!authorization) {
+      res.status(403).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    let game = await cache.dictionaryGetField('game', gameId, 'passKey');
+    if (game instanceof CacheDictionaryGetField.Miss || game instanceof CacheDictionaryGetField.Error) {
+      res.status(404).json({ message: 'Game not found' });
+      return;
+    } else {
+      if (game.value() !== authorization) {
+        res.status(403).json({ message: 'Unauthorized' });
+        return;
+      }
+    }
 
     const previousResponse = await cache.setFetch('game', gameId);
     let previousIds = [];
@@ -32,11 +55,11 @@ export default async function handler(req, res) {
     } else {
       query += ` ORDER BY RANDOM() LIMIT 1`;
     }
-    
+
     const result = tag ? await sql(query, [tag]) : await sql(query);
     const question = result[0];
     if (!question) {
-      res.status(404).json({ message: 'No more questions matching requested criteria' });
+      res.status(409).json({ message: 'No more questions matching requested criteria. Try changing or removing the tag.' });
     }
     await cache.setAddElement('game', gameId, `${question.id}`);
     res.status(200).json({ question: question.question, answer: question.answer });
@@ -45,12 +68,3 @@ export default async function handler(req, res) {
     res.status(500).json({ error: 'Something went wrong' });
   }
 }
-
-const initializeMomento = async () => {
-  if (!cache) {
-    cache = new CacheClient({
-      credentialProvider: CredentialProvider.fromEnvVar('MOMENTO'),
-      defaultTtlSeconds: 3600
-    });
-  }
-};

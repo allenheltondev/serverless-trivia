@@ -17,13 +17,26 @@ export default async function handler(req, res) {
   try {
     const { gameId } = req.query;
     const { authorization } = req.headers;
+    if (!authorization) {
+      res.status(403).json({ message: 'Unauthorized' });
+      return;
+    }
+
     if (req.method === 'POST') {
       let { username, team } = req.body;
-      const response = await cacheClient.dictionaryGetField('game', `${gameId}-security`, 'passKey');
 
-      if (!authorization || response.is_miss || response.value() != authorization) {
-        res.status(403).json({ message: 'Unauthorized' });
+      const response = await cacheClient.dictionaryFetch('game', gameId);
+      let game;
+
+      if (response instanceof CacheDictionaryFetch.Miss || response instanceof CacheDictionaryFetch.Error) {
+        res.status(404).json({ message: 'Game not found' });
         return;
+      } else {
+        game = response.value();
+        if (game.passKey !== authorization) {
+          res.status(403).json({ message: 'Unauthorized' });
+          return;
+        }
       }
 
       if (!username) {
@@ -32,11 +45,26 @@ export default async function handler(req, res) {
       }
 
       if (username !== 'host') {
+        if (game.status !== 'Waiting for players...') {
+          res.status(409).json({ message: 'Game has already started' });
+          return;
+        }
+        
         team = team?.toLowerCase();
         if (!team || (team !== 'blue' && team !== 'purple')) {
           res.status(400).json({ message: 'Invalid team' });
           return;
         }
+
+        const currentTeam = await cacheClient.setFetch('game', `${gameId}-${team}`);
+        if (currentTeam instanceof CacheSetFetch.Hit) {
+          const teamMembers = currentTeam.value();
+          if (!teamMembers.includes(username) && teamMembers.length >= 4) {
+            res.status(409).json({ message: `The ${team} team is full.` });
+            return;
+          }
+        }
+
         await cacheClient.setAddElement('game', `${gameId}-${team}`, username);
         await topicClient.publish('game', `${gameId}-players`, JSON.stringify(
           {
@@ -46,7 +74,7 @@ export default async function handler(req, res) {
       }
 
       const tokenScope = getTokenScope(gameId, username);
-      const token = await auth.generateDisposableToken(tokenScope, ExpiresIn.hours(1), { tokenId: `${team}#${username}`});
+      const token = await auth.generateDisposableToken(tokenScope, ExpiresIn.hours(1), { tokenId: `${team}#${username}` });
       if (token instanceof GenerateDisposableToken.Success) {
         const vendedToken = {
           token: token.authToken,

@@ -9,8 +9,10 @@ import { Flip, ToastContainer, toast } from 'react-toastify';
 import QRCode from 'react-qr-code';
 
 const WAITING = 'Waiting for players...';
+const PLAYING = 'Playing';
+
 const defaultGame = {
-  status: WAITING,
+  status: 'Loading...',
   blueTeam: {
     name: 'Blue Team',
     players: []
@@ -36,6 +38,9 @@ export default function Game() {
   const [bluePlayers, setBluePlayers] = useState([]);
   const [purplePlayers, setPurplePlayers] = useState([]);
   const [game, setGame] = useState(defaultGame);
+  const [question, setQuestion] = useState('');
+  const [isAnswerVisible, setIsAnswerVisible] = useState(false);
+
   const cacheClientRef = useRef(cacheClient);
   const topicClientRef = useRef(topicClient);
   const guessingUserRef = useRef(guessingUser);
@@ -173,7 +178,7 @@ export default function Game() {
 
     const [team, username] = user.split('#');
     setGuessingUser({ team, username });
-    usernameRef.current = { team, username };
+    guessingUserRef.current = { team, username };
 
     await cacheClientRef.current.set('game', `${params.gameId}-status`, 'guessing');
     await topicClientRef.current.publish('game', `${params.gameId}-status`, user);
@@ -184,6 +189,46 @@ export default function Game() {
     toast.info('Link copied to clipboard', { position: 'bottom-center', theme: 'dark', autoClose: 1500, hideProgressBar: true, transition: Flip });
   };
 
+  const updateGameStatus = async (status) => {
+    await fetch(`/api/games/${params.gameId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': credentials.passKey
+      }
+    });
+    setGame({ ...game, status });
+  };
+
+  const getNextQuestion = async () => {
+    const response = await fetch(`/api/games/${params.gameId}/questions`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': credentials.passKey
+      }
+    });
+    const data = await response.json();
+    if (response.status == 404) {
+      router.push('/not-found');
+    } else if (response.status == 403) {
+      router.push('/unauthorized');
+    } else if (response.status == 409) {
+      toast.warn(data.message, { position: 'bottom-center', theme: 'dark', autoClose: 1500, hideProgressBar: true, transition: Flip });
+    } else if (response.status == 500) {
+      toast.error(data.message, { position: 'bottom-center', theme: 'dark', autoClose: 1500, hideProgressBar: true, transition: Flip });
+    } else {
+      setIsAnswerVisible(false);
+      setQuestion(data);
+      setGuessingUser({ team: '', username: '' });
+      guessingUserRef.current = { team: '', username: '' };
+
+      await cacheClientRef.current.set('game', `${params.gameId}-status`, 'ready');
+      const r = await topicClientRef.current.publish('game', `${params.gameId}-status`, '#');
+      console.log(r);
+    }
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center p-24 w-full">
       <Header />
@@ -192,18 +237,32 @@ export default function Game() {
         <div id="mid-container" className="w-max-1/2">
           {game.status == WAITING && (
             <div className="flex flex-col items-center">
-              <a href={`${window.location.href}/play?passKey=${credentials.passKey}`} target="_blank">
-                <QRCode value={`${window.location.href}/play?passKey=${credentials.passKey}`} size={500} style={{ height: "auto", maxWidth: "200" }} />
+              <a href={`${window?.location?.href}/play?passKey=${credentials.passKey}`} target="_blank">
+                <QRCode value={`${window?.location?.href}/play?passKey=${credentials.passKey}`} size={500} style={{ height: "auto", maxWidth: "200" }} />
               </a>
               <div className="text-xl font-bold mb-4 mt-4">
                 <span>Scan code or </span>
                 <span onClick={copyShareLink} className="cursor-pointer underline">share link</span>
                 <span> to join</span>
               </div>
-              <button className="w-full font-bold border border-white text-white py-2 rounded hover:bg-blue-600 transition duration-300">Start game</button>
+              <button
+                className="w-full font-bold border border-white text-white py-2 rounded hover:bg-blue-600 transition duration-300"
+                onClick={() => updateGameStatus('Playing')}
+              >Start game</button>
             </div>
           )}
-
+          {game.status == PLAYING && (
+            <div className="flex flex-col gap-4 items-center">
+              <div className="flex flex-row gap-4 items-center justify-center">
+                <button className="font-bold bg-purple text-black p-2 rounded" onClick={getNextQuestion}>Next Question</button>
+                {question && (
+                  <button className="font-bold bg-blue text-black p-2 rounded" onClick={() => setIsAnswerVisible(true)}>Show Answer</button>
+                )}
+              </div>
+              <span className="text-2xl font-bold mt-4">{question.question}</span>
+              {isAnswerVisible && <span className="text-lg italic font-bold mb-4">{question.answer}</span>}
+            </div>
+          )}
         </div>
         <div className="flex flex-row justify-between w-full">
           <div className="flex flex-col items-left">
