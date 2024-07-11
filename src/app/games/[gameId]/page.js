@@ -7,6 +7,7 @@ import { loadCredentials, saveCredentials } from "@/components/CredentialManager
 import { TopicClient, CredentialProvider, CacheClient } from '@gomomento/sdk-web';
 import { Flip, ToastContainer, toast } from 'react-toastify';
 import QRCode from 'react-qr-code';
+import HostJoin from '@/components/HostJoin';
 
 const WAITING = 'Waiting for players...';
 const PLAYING = 'Playing';
@@ -54,55 +55,61 @@ export default function Game() {
   const passKey = useSearchParams().get('passKey');
 
   useEffect(() => {
-    const initialize = async () => {
-      let creds = setupCredentials();
-      creds = await getToken(creds);
-      getGameDetail(creds);
-      getTagList();
-      configureMomentoClients(creds);
-    };
-
-    const getToken = async (creds) => {
-      const res = await fetch(`/api/games/${params.gameId}/login`, {
-        method: 'POST',
-        body: JSON.stringify({
-          username: 'host'
-        }),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': creds.passKey
-        }
-      });
-
-      if (res.status === 403) {
-        router.push('/unauthorized');
-      }
-
-      const data = await res.json();
-      creds.token = data.token;
-      saveCredentials(params.gameId, creds);
-
-      return creds;
-    };
-
-    const setupCredentials = () => {
-      let creds = loadCredentials(params.gameId);
-      if (!creds && !passKey) {
-        router.push('/unauthorized');
-      } else if (passKey) {
-        creds = { passKey };
-        saveCredentials(params.gameId, creds);
-        router.push(window.location.pathname);
-      }
-
-      setCredentials(creds);
-      return creds;
-    };
-
     if (params.gameId) {
       initialize();
     }
   }, [params]);
+
+  const initialize = async () => {
+    let creds = setupCredentials();
+    if (creds?.passKey) {
+      creds = await getToken(creds);
+      getGameDetail(creds);
+      getTagList();
+      configureMomentoClients(creds);
+    }
+  };
+
+  const getToken = async (creds) => {
+    const res = await fetch(`/api/games/${params.gameId}/login`, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'host'
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': creds.passKey
+      }
+    });
+
+    if (res.status === 403) {
+      saveCredentials(params.gameId, {});
+      router.push('/unauthorized');
+    } else if (res.status == 404){
+      saveCredentials(params.gameId, {});
+      router.push('/notfound');
+    }
+
+    const data = await res.json();
+    creds.token = data.token;
+    saveCredentials(params.gameId, creds);
+
+    return creds;
+  };
+
+  const setupCredentials = () => {
+    let creds = loadCredentials(params.gameId);
+    if (!creds && !passKey) {
+      console.log('falling back to hostjoin');
+    } else if (passKey) {
+      creds = { passKey };
+      saveCredentials(params.gameId, creds);
+      router.push(window.location.pathname);
+    }
+
+    setCredentials(creds);
+    return creds;
+  };
 
   const getGameDetail = async (creds) => {
     const res = await fetch(`/api/games/${params.gameId}`, {
@@ -120,6 +127,27 @@ export default function Game() {
 
     setGame(data);
     setPlayers(data.blueTeam.players, data.purpleTeam.players);
+    setBlueScore(data.blueTeam.score);
+    setPurpleScore(data.purpleTeam.score);
+    if (data.questionId) {
+      loadQuestion(data.questionId);
+    }
+  };
+
+  const loadQuestion = async (questionId) => {
+    const res = await fetch(`/api/questions/${questionId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await res.json();
+    if (res.status !== 200) {
+      toast.error('Failed to load question');
+    }
+
+    setQuestion(data);
   };
 
   const getTagList = async () => {
@@ -307,6 +335,7 @@ export default function Game() {
   return (
     <main className="flex min-h-screen flex-col items-center p-24 w-full">
       <Header />
+      <HostJoin gameId={params.gameId} credentials={credentials} initialize={initialize} />
       {game.status !== PLAYING && <span className="text-2xl font-bold mb-4">{game.status}</span>}
       <div className="flex flex-col items-center w-full">
         <div id="mid-container" className="w-full flex justify-center">

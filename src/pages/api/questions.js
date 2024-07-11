@@ -29,10 +29,10 @@ export default async function handler(req, res) {
       }
       return res.status(201).json({ id: newQuestion[0].id });
     } else {
-      return res.status(405).json({ error: 'Method not allowed' });
+      return res.status(405).json({ message: 'Method not allowed' });
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Something went wrong' });
+    res.status(500).json({ message: 'Something went wrong' });
   }
 }

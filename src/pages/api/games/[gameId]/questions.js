@@ -10,7 +10,7 @@ const cache = new CacheClient({
 export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
-      res.status(405).json({ error: 'Method not allowed' });
+      res.status(405).json({ message: 'Method not allowed' });
       return;
     }
 
@@ -62,9 +62,10 @@ export default async function handler(req, res) {
       res.status(409).json({ message: 'No more questions matching requested criteria. Try changing or removing the tag.' });
     }
     await cache.setAddElement('game', gameId, `${question.id}`);
+    await cache.dictionarySetField('game', gameId, 'questionId', `${question.id}`);
     res.status(200).json({ id: question.id, question: question.question, answer: question.answer });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Something went wrong' });
+    res.status(500).json({ message: 'Something went wrong' });
   }
 }

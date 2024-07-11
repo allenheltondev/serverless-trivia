@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     } else if (req.method == 'POST') {
       const game = req.body;
       if(!game.passKey){
-        res.status(400).json({ error: 'passKey is required' });
+        res.status(400).json({ message: 'passKey is required' });
         return;
       }
 
@@ -35,11 +35,11 @@ export default async function handler(req, res) {
 
       res.status(201).json({ id: gameId, passKey: game.passKey });
     } else {
-      res.status(405).json({ error: 'Method not allowed' });
+      res.status(405).json({ message: 'Method not allowed' });
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Something went wrong' });
+    res.status(500).json({ message: 'Something went wrong' });
   }
 };
 

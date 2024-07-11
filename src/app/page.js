@@ -101,7 +101,7 @@ export default function Home() {
       {games.length > 0 && (
         <div className="flex flex-col gap-4 left w-full mt-8">
           <span>Active Games</span>
-          <ul className="w-full">
+          <ul className="w-full flex flex-row gap-4">
             {games.map((game) => (
               <li
                 key={game}

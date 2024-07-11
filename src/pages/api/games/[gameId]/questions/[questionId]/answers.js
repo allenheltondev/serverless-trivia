@@ -87,11 +87,11 @@ export default async function handler(req, res) {
       res.status(200).json({ team: input.team, score: newScore });
     }
     else {
-      res.status(405).json({ error: 'Method not allowed' });
+      res.status(405).json({ message: 'Method not allowed' });
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Something went wrong' });
+    res.status(500).json({ message: 'Something went wrong' });
   }
 };
 
