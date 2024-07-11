@@ -41,6 +41,8 @@ export default function Game() {
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
   const [blueScore, setBlueScore] = useState(0);
   const [purpleScore, setPurpleScore] = useState(0);
+  const [tag, setTag] = useState('');
+  const [tags, setTags] = useState([]);
 
   const cacheClientRef = useRef(cacheClient);
   const topicClientRef = useRef(topicClient);
@@ -56,6 +58,7 @@ export default function Game() {
       let creds = setupCredentials();
       creds = await getToken(creds);
       getGameDetail(creds);
+      getTagList();
       configureMomentoClients(creds);
     };
 
@@ -117,6 +120,22 @@ export default function Game() {
 
     setGame(data);
     setPlayers(data.blueTeam.players, data.purpleTeam.players);
+  };
+
+  const getTagList = async () => {
+    const res = await fetch(`/api/tags`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await res.json();
+    if (res.status !== 200) {
+      toast.error('Failed to get tag list');
+    }
+    console.log(data);
+    setTags(data);
   };
 
   const setPlayers = (blueTeam, purpleTeam) => {
@@ -258,7 +277,7 @@ export default function Game() {
       }
     }
 
-    const response = await fetch(`/api/games/${params.gameId}/questions`, {
+    const response = await fetch(`/api/games/${params.gameId}/questions${(tag && tag !== 'placeholder') ? `?tag=${tag}` : ''}`, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': credentials.passKey
@@ -330,6 +349,12 @@ export default function Game() {
                   </div>
                 )}
               </div>
+              <select className="text-black rounded p-2 w-2/3 mt-4" onChange={(e) => setTag(e.target.value)}>
+                <option key="placeholder" value={tag} className="text-gray">(Optional) Select a question category</option>
+                {tags.map((tag) => (
+                  <option key={tag} value={tag}>{tag}</option>
+                ))}
+              </select>
             </div>
           )}
         </div>

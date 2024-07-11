@@ -64,7 +64,6 @@ export default async function handler(req, res) {
           return;
         }
       } else {
-        console.log(gameDetails)
         if (gameDetails.deductPoints === 'true') {
           const response = await cache.dictionaryIncrement('game', gameId, `${input.team}-score`, -10);
           if (response instanceof CacheDictionaryIncrement.Success) {
