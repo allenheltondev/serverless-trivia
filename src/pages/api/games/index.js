@@ -25,6 +25,7 @@ export default async function handler(req, res) {
       game.status = 'Waiting for players...';
       game.purpleTeamName = generateRandomTeamName('Purple');
       game.blueTeamName = generateRandomTeamName('Blue');
+      game.deductPoints = game.deductPoints ? 'true' : 'false';
 
       const gameId = generategameId();
 

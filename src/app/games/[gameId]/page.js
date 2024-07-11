@@ -39,6 +39,8 @@ export default function Game() {
   const [game, setGame] = useState(defaultGame);
   const [question, setQuestion] = useState({ question: 'Ready to play?' });
   const [isAnswerVisible, setIsAnswerVisible] = useState(false);
+  const [blueScore, setBlueScore] = useState(0);
+  const [purpleScore, setPurpleScore] = useState(0);
 
   const cacheClientRef = useRef(cacheClient);
   const topicClientRef = useRef(topicClient);
@@ -196,7 +198,7 @@ export default function Game() {
   const disableGuessing = async (user) => {
     await cacheClientRef.current.set('game', `${params.gameId}-status`, 'guessing');
     await topicClientRef.current.publish('game', `${params.gameId}-status`, user);
-  }
+  };
 
   const copyShareLink = () => {
     navigator.clipboard.writeText(`${window.location.href}/play?passKey=${credentials.passKey}`);
@@ -217,28 +219,44 @@ export default function Game() {
 
   const showAnswer = () => {
     setIsAnswerVisible(true);
-    if(guessingUserRef.current.team && guessingUserRef.current.username){
+    if (guessingUserRef.current.team && guessingUserRef.current.username) {
       disableGuessing(`${guessingUserRef.current.team}#${guessingUserRef.current.username}`);
     } else {
       disableGuessing('#');
     }
-  }
+  };
 
   const getNextQuestion = async (answeredCorrectly) => {
-    // if (answeredCorrectly != undefined) {
-    //   await fetch(`/api/games/${params.gameId}/questions/${question.id}/answers`, {
-    //     method: 'POST',
-    //     body: JSON.stringify({
-    //       team: guessingUserRef.current.team,
-    //       username: guessingUserRef.current.username,
-    //       isCorrect: answeredCorrectly
-    //     }),
-    //     headers: {
-    //       'Content-Type': 'application/json',
-    //       'Authorization': credentials.passKey
-    //     }
-    //   });
-    // }
+    if (answeredCorrectly != undefined) {
+      const response = await fetch(`/api/games/${params.gameId}/questions/${question.id}/answers`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...guessingUserRef.current && {
+            team: guessingUserRef.current.team,
+            username: guessingUserRef.current.username
+          },
+          isCorrect: answeredCorrectly
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': credentials.passKey
+        }
+      });
+      if (response.status == 403) {
+        router.push('/unauthorized');
+      } else if (response.status == 404) {
+        router.push('/not-found');
+      } else if (response.status == 500) {
+        toast.error('Something went wrong', { position: 'bottom-center', theme: 'dark', autoClose: 1500, hideProgressBar: true, transition: Flip });
+      } else if (response.status == 200) {
+        const data = await response.json();
+        if (data.team == 'blue') {
+          setBlueScore(data.score);
+        } else {
+          setPurpleScore(data.score);
+        }
+      }
+    }
 
     const response = await fetch(`/api/games/${params.gameId}/questions`, {
       headers: {
@@ -301,7 +319,7 @@ export default function Game() {
                 }
               </div>
               <div className="flex flex-row gap-4 items-center justify-center">
-                {!question.answer && <button className="font-bold bg-purple text-black p-2 rounded" onClick={getNextQuestion}>Show first question</button>}
+                {!question.answer && <button className="font-bold bg-purple text-black p-2 rounded" onClick={() => getNextQuestion()}>Show first question</button>}
                 {(question.answer && !isAnswerVisible) && (
                   <button className="font-bold bg-blue text-black p-2 rounded" onClick={() => showAnswer()}>Show answer</button>
                 )}
@@ -317,7 +335,7 @@ export default function Game() {
         </div>
         <div className="flex flex-row justify-between w-full">
           <div className="flex flex-col items-left">
-            <span className="text-xl font-bold mb-4">{game.blueTeam.name}</span>
+            <span className="text-xl font-bold mb-4">{game.blueTeam.name} - {blueScore}</span>
             <ul>
               {bluePlayersRef.current.map((player, index) => (
                 <li key={index}>
@@ -341,7 +359,7 @@ export default function Game() {
             </ul>
           </div>
           <div className="flex flex-col items-end">
-            <span className="text-xl font-bold mb-4">{game.purpleTeam.name}</span>
+            <span className="text-xl font-bold mb-4">{game.purpleTeam.name} - {purpleScore}</span>
             <ul className="w-full">
               {purplePlayersRef.current.map((player, index) => (
                 <li key={index}>
